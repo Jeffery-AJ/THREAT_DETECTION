@@ -1,86 +1,88 @@
 from .predictor import predict_threat
 from .models import ThreatLog
-import os
-from datetime import datetime
-import csv
 import random
 
-def analyze_traffic(data, source_ip=None):
-
+def analyze_traffic(data, ip):
+    """Analyze traffic data and create a threat log entry"""
+    # Extract features from request data or use defaults
     features = [
-        data.get("flow_duration", 0),
-        data.get("total_packets", 0),
-        data.get("packet_length", 0),
-        data.get("bytes_per_second", 0),
-        data.get("packet_rate", 0),
-        data.get("avg_packet_size", 0),
-        data.get("connection_count", 0),
-        data.get("flag_count", 0)
+        data.get('flow_duration', random.uniform(1, 1000)),
+        data.get('total_fwd_packets', random.randint(1, 10)),
+        data.get('total_bwd_packets', random.randint(0, 5)),
+        data.get('total_len_fwd_packets', random.randint(0, 1000)),
+        data.get('total_len_bwd_packets', random.randint(0, 500)),
+        data.get('fwd_packet_len_max', random.randint(0, 1500)),
+        data.get('fwd_packet_len_min', random.randint(0, 100)),
+        data.get('fwd_packet_len_mean', random.randint(0, 750)),
+        data.get('fwd_packet_len_std', random.randint(0, 500)),
+        data.get('bwd_packet_len_max', random.randint(0, 1500)),
+        data.get('bwd_packet_len_min', random.randint(0, 100)),
+        data.get('bwd_packet_len_mean', random.randint(0, 750)),
+        data.get('bwd_packet_len_std', random.randint(0, 500)),
+        data.get('flow_bytes_s', random.uniform(0, 100000)),
+        data.get('flow_packets_s', random.uniform(0, 10000)),
+        data.get('flow_iat_mean', random.uniform(0, 1000)),
+        data.get('flow_iat_std', random.uniform(0, 500)),
+        data.get('flow_iat_max', random.uniform(0, 2000)),
+        data.get('flow_iat_min', random.uniform(0, 100)),
+        data.get('fwd_iat_total', random.uniform(0, 5000)),
+        data.get('fwd_iat_mean', random.uniform(0, 1000)),
+        data.get('fwd_iat_std', random.uniform(0, 500)),
+        data.get('fwd_iat_max', random.uniform(0, 2000)),
+        data.get('fwd_iat_min', random.uniform(0, 100)),
+        data.get('bwd_iat_total', random.uniform(0, 5000)),
+        data.get('bwd_iat_mean', random.uniform(0, 1000)),
+        data.get('bwd_iat_std', random.uniform(0, 500)),
+        data.get('bwd_iat_max', random.uniform(0, 2000)),
+        data.get('bwd_iat_min', random.uniform(0, 100)),
+        data.get('fwd_psh_flags', random.randint(0, 10)),
+        data.get('bwd_psh_flags', random.randint(0, 10)),
+        data.get('fwd_urg_flags', random.randint(0, 5)),
+        data.get('bwd_urg_flags', random.randint(0, 5)),
+        40, 40,  # Header lengths
+        data.get('fwd_packets_s', random.uniform(0, 5000)),
+        data.get('bwd_packets_s', random.uniform(0, 5000)),
+        data.get('min_packet_len', random.randint(0, 100)),
+        data.get('max_packet_len', random.randint(1000, 1500)),
+        data.get('packet_len_mean', random.uniform(500, 1000)),
+        data.get('packet_len_std', random.uniform(100, 500)),
+        0,  # Packet length variance
+        data.get('fin_flag_count', random.randint(0, 2)),
+        data.get('syn_flag_count', random.randint(0, 2)),
+        data.get('rst_flag_count', random.randint(0, 2)),
+        data.get('psh_flag_count', random.randint(0, 10)),
+        data.get('ack_flag_count', random.randint(0, 20)),
+        data.get('urg_flag_count', random.randint(0, 5)),
+        0, 0,  # CWE, ECE flags
+        data.get('down_up_ratio', random.uniform(0, 5)),
+        data.get('avg_packet_size', random.uniform(500, 1200)),
+        data.get('avg_fwd_segment_size', random.uniform(500, 1000)),
+        data.get('avg_bwd_segment_size', random.uniform(500, 1000)),
+        40,  # Fwd header length
+        0, 0, 0, 0, 0, 0,  # Bulk features
+        data.get('subflow_fwd_packets', random.randint(1, 10)),
+        data.get('subflow_fwd_bytes', random.randint(100, 1000)),
+        data.get('subflow_bwd_packets', random.randint(0, 5)),
+        data.get('subflow_bwd_bytes', random.randint(0, 500)),
+        0, 0,  # Window bytes
+        0,  # act_data_pkt_fwd
+        20,  # min_seg_size_forward
+        0, 0, 0, 0,  # Active/Idle features
+        0, 0, 0, 0   # More Idle features
     ]
 
     prediction = predict_threat(features)
 
-    attack_type = "ATTACK" if prediction == 1 else "NORMAL"
-
+    # Create threat log entry
     log = ThreatLog.objects.create(
-        source_ip=source_ip,
-        flow_duration=data.get("flow_duration"),
-        total_packets=data.get("total_packets"),
-        prediction=attack_type
+        source_ip=ip,
+        flow_duration=features[0],
+        total_packets=features[1] + features[2],
+        prediction='ATTACK' if prediction == 1 else 'NORMAL'
     )
-    save_log(source_ip, attack_type)
 
     return log
 
-def save_log(source_ip, prediction):
-
-    timestamp = datetime.now()
-
-    log_entry = f"{timestamp} | IP: {source_ip} | RESULT: {prediction}\n"
-
-    with open(LOG_FILE, "a") as file:
-        file.write(log_entry)
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-LOG_FILE = os.path.join(BASE_DIR, "logs", "threat_logs.txt")    
-
 def simulate_dataset():
-    dataset_path = os.path.join(BASE_DIR, "Datasets", "sample_attack_data.csv")
-    results = []
-    
-    if not os.path.exists(dataset_path):
-        dataset_path = os.path.join(BASE_DIR, "datasets", "sample_attack_data.csv")
-        if not os.path.exists(dataset_path):
-            return results
-
-    try:
-        with open(dataset_path, "r") as f:
-            reader = csv.reader(f)
-            next(reader)
-            count = 0
-            for row in reader:
-                if count >= 15: 
-                    break
-                try:
-                    data = {
-                        "flow_duration": float(row[1]) if row[1] else 0,
-                        "total_packets": int(row[2]) + int(row[3]) if row[2] and row[3] else 0,
-                        "packet_length": float(row[4]) if row[4] else 0,
-                        "bytes_per_second": float(row[14]) if row[14] else 0,
-                        "packet_rate": float(row[15]) if row[15] else 0,
-                        "avg_packet_size": float(row[53]) if len(row) > 53 and row[53] else 0,
-                        "connection_count": 1,
-                        "flag_count": int(row[43]) if len(row) > 43 and row[43] else 0,
-                    }
-                    ip = f"192.168.1.{random.randint(10, 99)}"
-                    log = analyze_traffic(data, source_ip=ip)
-                    results.append(log)
-                    count += 1
-                except Exception:
-                    pass
-    except Exception as e:
-        print(f"Error simulating dataset: {e}")
-        
-    return results
+    """Placeholder for dataset simulation - not used anymore"""
+    pass

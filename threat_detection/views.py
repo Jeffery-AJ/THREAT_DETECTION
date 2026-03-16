@@ -2,7 +2,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.shortcuts import render
 from .services import analyze_traffic, simulate_dataset
-from .models import ThreatLog
+from .models import ThreatLog, CaptureSession
+import time
 
 
 def dashboard(request):
@@ -46,47 +47,73 @@ def detect_threat(request):
 
 @api_view(["GET"])
 def simulate(request):
-    # Run the traffic simulator instead of dataset simulation
-    import subprocess
-    import os
-    
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    script_path = os.path.join(BASE_DIR, "traffic_simulator.py")
-    
-    try:
-        # Run the traffic simulator script
-        result = subprocess.run(
-            ["python", script_path],
-            capture_output=True,
-            text=True,
-            cwd=BASE_DIR,
-            timeout=300  # 5 minute timeout
-        )
-        
-        # Count blocked IPs from the log file
-        blocked_ips_file = os.path.join(BASE_DIR, "logs", "blocked_ips.log")
-        blocked_count = 0
-        if os.path.exists(blocked_ips_file):
-            with open(blocked_ips_file, "r") as f:
-                blocked_count = len(f.readlines())
-        
-        return Response({
-            "status": "success",
-            "message": "Traffic simulation completed",
-            "blocked_ips": blocked_count,
-            "output": result.stdout[-500:] if result.stdout else "",  # Last 500 chars
-            "error": result.stderr[-500:] if result.stderr else ""
+    # This endpoint is now for starting network capture
+    from .network_monitor import NetworkMonitor
+    monitor = NetworkMonitor()
+    monitor.reset_stats()  # Reset stats before starting
+    monitor.start_monitoring()
+    return Response({
+        "status": "started",
+        "message": "Network capture started"
+    })
+
+
+@api_view(["GET"])
+def stop_capture(request):
+    from .network_monitor import NetworkMonitor
+    monitor = NetworkMonitor()
+    monitor.stop_monitoring()
+    return Response({
+        "status": "stopped",
+        "message": "Network capture stopped"
+    })
+
+
+@api_view(["GET"])
+def get_capture_stats(request):
+    from .network_monitor import NetworkMonitor
+    monitor = NetworkMonitor()
+    stats = monitor.get_stats()
+    # Convert timestamps to readable format
+    for ip in stats['blocked_ips']:
+        ip['timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ip['timestamp']))
+    return Response(stats)
+
+
+@api_view(["GET"])
+def get_capture_sessions(request):
+    """Return list of historical capture sessions"""
+    sessions = CaptureSession.objects.order_by('-start_time')[:50]  # Last 50 sessions
+    data = []
+    for session in sessions:
+        data.append({
+            'session_id': session.session_id,
+            'start_time': session.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end_time': session.end_time.strftime('%Y-%m-%d %H:%M:%S') if session.end_time else None,
+            'duration': session.duration,
+            'total_traffic': session.total_traffic,
+            'attacks_detected': session.attacks_detected,
+            'benign_traffic': session.benign_traffic,
+            'blocked_ips_count': len(session.blocked_ips),
+            'blocked_ips': session.blocked_ips
         })
-    except subprocess.TimeoutExpired:
-        return Response({
-            "status": "timeout",
-            "message": "Traffic simulation timed out"
-        }, status=408)
-    except Exception as e:
-        return Response({
-            "status": "error",
-            "message": f"Traffic simulation failed: {str(e)}"
-        }, status=500)
+    return Response(data)
+    """Return list of historical capture sessions"""
+    sessions = CaptureSession.objects.order_by('-start_time')[:50]  # Last 50 sessions
+    data = []
+    for session in sessions:
+        data.append({
+            'session_id': session.session_id,
+            'start_time': session.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end_time': session.end_time.strftime('%Y-%m-%d %H:%M:%S') if session.end_time else None,
+            'duration': session.duration,
+            'total_traffic': session.total_traffic,
+            'attacks_detected': session.attacks_detected,
+            'benign_traffic': session.benign_traffic,
+            'blocked_ips_count': len(session.blocked_ips),
+            'blocked_ips': session.blocked_ips
+        })
+    return Response(data)
 
 
 @api_view(["GET"])
