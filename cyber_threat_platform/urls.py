@@ -1,25 +1,18 @@
-"""
-URL configuration for cyber_threat_platform project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path
-from threat_detection.views import detect_threat, simulate
+from threat_detection.views import (
+    detect_threat, simulate, dashboard, get_logs,
+    get_dashboard_metrics, get_activity_stats, health, get_blocked_ips
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/detect/', detect_threat, name='detect_api'),
-    path('api/simulate/', simulate, name='simulate_api'),
+    path("admin/", admin.site.urls),
+    path("", dashboard, name="dashboard"),
+    path("api/health/", health, name="health"),
+    path("api/detect/", detect_threat, name="detect_api"),
+    path("api/simulate/", simulate, name="simulate_api"),
+    path("api/logs/", get_logs, name="get_logs"),
+    path("api/dashboard-metrics/", get_dashboard_metrics, name="dashboard_metrics"),
+    path("api/activity-stats/", get_activity_stats, name="activity_stats"),
+    path("api/blocked-ips/", get_blocked_ips, name="blocked_ips"),
 ]
